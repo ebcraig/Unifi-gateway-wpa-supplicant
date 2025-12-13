@@ -4,7 +4,7 @@ Use this guide to setup wpa_supplicant with your Unifi gateway to bypass the ATT
 This will work on any modern [Unifi Console or Gateway](https://www.reddit.com/r/Ubiquiti/comments/1870ryr/unifi_gateways_explained_as_simple_as_possible/) running UniFi OS 3.x or 4.x. To my knowledge, that includes everything except the original USG which will have a different process that is already well documented over the years (check [Additional resources](#additional-resources)).
 
 > [!IMPORTANT]
-> Take note of your Unifi gateway's WAN port interface name. In the rest of the guide, I'll be using `eth1` because that is the WAN interface for the UXG Lite. If using another Unifi gateway, replace the interface name appropriately.
+> Take note of your Unifi gateway's WAN port interface name. In the rest of the guide, I'll be using `eth9` because that is the WAN interface I'm using (SFP) for AT&T on my UDM Pro. If using another Unifi gateway, replace the interface name appropriately.
 
 Here are some known interfaces for Unifi gateways, for use in the rest of the guide. Double check with your device to be sure.
 - UXG Lite or UX  - eth1
@@ -92,7 +92,7 @@ network={
 ```
 
 ## Spoof MAC address
-We'll need to spoof the MAC address on the WAN port (interface `eth1` on the UXG-Lite) to successfully authenticate with ATT with our certificates.
+We'll need to spoof the MAC address on the WAN port (interface `eth9` on the UXG-Lite) to successfully authenticate with ATT with our certificates.
 
 In the Unifi dashboard, go to `Settings` -> `Internet` and select your WAN. Enable `MAC Address Clone` and paste the MAC address with your ATT gateway's address.
 
@@ -108,7 +108,7 @@ SSH back into your gateway, and create the following file.
 ```bash
 #!/bin/sh
 
-if [ "$IFACE" = eth1 ]; then
+if [ "$IFACE" = eth9 ]; then
   ip link set dev "$IFACE" address XX:XX:XX:XX:XX:XX
 fi
 ```
@@ -118,7 +118,7 @@ Set the permissions:
 ```bash
 > sudo chmod 755 /etc/network/if-up.d/changemac
 ```
-This file will spoof your WAN mac address when `eth1` starts up. Go ahead and run the same command now so you don't have to reboot your gateway.
+This file will spoof your WAN mac address when `eth9` starts up. Go ahead and run the same command now so you don't have to reboot your gateway.
 ```bash
 > ip link set dev "$IFACE" address XX:XX:XX:XX:XX:XX
 ```
@@ -145,11 +145,11 @@ Apply the change, then unplug the ethernet cable from the ONT port on your ATT G
 ## Test wpa_supplicant
 While SSHed into the gateway, run this to test the authentication.
 ```bash
-> wpa_supplicant -i eth1 -D wired -c /etc/wpa_supplicant/wpa_supplicant.conf
+> wpa_supplicant -i eth9 -D wired -c /etc/wpa_supplicant/wpa_supplicant.conf
 ```
 Breaking down this command...
-- `-i eth1` Specifies `eth1` (UXG-Lite WAN port) as the interface
-- `-D wired` Specify driver type of `eth1`
+- `-i eth9` Specifies `eth9` (UXG-Lite WAN port) as the interface
+- `-D wired` Specify driver type of `eth9`
 - `-c <path-to>/wpa_supplicant.conf` The config file
 
 > [!TIP]
@@ -161,10 +161,10 @@ You should see the message `Successfully initialized wpa_supplicant` if the comm
 
 Following that will be some logs from authenticating. If it looks something like this, then it was successful!
 ```
-eth1: CTRL-EVENT-EAP-PEER-CERT depth=0 subject='/C=US/ST=Michigan/L=Southfield/O=ATT Services Inc/OU=OCATS/CN=aut03lsanca.lsanca.sbcglobal.net' hash=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-eth1: CTRL-EVENT-EAP-PEER-ALT depth=0 DNS:aut03lsanca.lsanca.sbcglobal.net
-eth1: CTRL-EVENT-EAP-SUCCESS EAP authentication completed successfully
-eth1: CTRL-EVENT-CONNECTED - Connection to XX:XX:XX:XX:XX:XX completed [id=0 id_str=]
+eth9: CTRL-EVENT-EAP-PEER-CERT depth=0 subject='/C=US/ST=Michigan/L=Southfield/O=ATT Services Inc/OU=OCATS/CN=aut03lsanca.lsanca.sbcglobal.net' hash=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+eth9: CTRL-EVENT-EAP-PEER-ALT depth=0 DNS:aut03lsanca.lsanca.sbcglobal.net
+eth9: CTRL-EVENT-EAP-SUCCESS EAP authentication completed successfully
+eth9: CTRL-EVENT-CONNECTED - Connection to XX:XX:XX:XX:XX:XX completed [id=0 id_str=]
 ```
 > [!TIP]
 > If you don't see the `EAP authentication completed successfully` message, try checking to make sure the MAC address was spoofed successfully.
@@ -176,25 +176,25 @@ Now we have to make sure wpa_supplicant starts automatically when the Unifi gate
 
 Let's use wpa_supplicant's built in interface-specific service to enable it on startup. More information [here](https://wiki.archlinux.org/title/Wpa_supplicant#At_boot_.28systemd.29).
 
-Because we need to specify the `wired` driver and `eth1` interface, the corresponding service will be `wpa_supplicant-wired@eth1.service`. This service is tied to a specific .conf file, so we will have to rename our config file.
+Because we need to specify the `wired` driver and `eth9` interface, the corresponding service will be `wpa_supplicant-wired@eth9.service`. This service is tied to a specific .conf file, so we will have to rename our config file.
 
-Back in `/etc/wpa_supplicant`, rename `wpa_supplicant.conf` to `wpa_supplicant-wired-eth1.conf`.
+Back in `/etc/wpa_supplicant`, rename `wpa_supplicant.conf` to `wpa_supplicant-wired-eth9.conf`.
 ```bash
 > cd /etc/wpa_supplicant
-> mv wpa_supplicant.conf wpa_supplicant-wired-eth1.conf
+> mv wpa_supplicant.conf wpa_supplicant-wired-eth9.conf
 ```
 
 Then start the service and check the status.
 ```bash
-> systemctl start wpa_supplicant-wired@eth1
+> systemctl start wpa_supplicant-wired@eth9
 
-> systemctl status wpa_supplicant-wired@eth1
+> systemctl status wpa_supplicant-wired@eth9
 ```
 If the service successfully started and is active, you should see similar logs as when we tested with the `wpa_supplicant` command.
 
 Now we can go ahead and enable the service.
 ```bash
-> systemctl enable wpa_supplicant-wired@eth1
+> systemctl enable wpa_supplicant-wired@eth9
 ```
 
 Try restarting your Unifi gateway if you wish, and it should automatically authenticate!
@@ -225,8 +225,8 @@ To confirm this conf has applied, restart the service and query for some propert
 
 ```bash
 > systemctl daemon-reload
-> systemctl restart wpa_supplicant-wired@eth1.service
-> systemctl show wpa_supplicant-wired@eth1.service -p Restart -p RestartSec
+> systemctl restart wpa_supplicant-wired@eth9.service
+> systemctl show wpa_supplicant-wired@eth9.service -p Restart -p RestartSec
 ```
 
 ## Survive firmware updates
@@ -274,8 +274,8 @@ StartLimitBurst=10
 [Service]
 Type=oneshot
 ExecStartPre=/usr/bin/dpkg -Ri /etc/wpa_supplicant/packages
-ExecStart=/bin/systemctl start wpa_supplicant-wired@eth1
-ExecStartPost=/bin/systemctl enable wpa_supplicant-wired@eth1
+ExecStart=/bin/systemctl start wpa_supplicant-wired@eth9
+ExecStartPost=/bin/systemctl enable wpa_supplicant-wired@eth9
 
 Restart=on-failure
 RestartSec=20
@@ -295,20 +295,20 @@ This service should run on startup. It will check if `/sbin/wpa_supplicant` got 
 <summary><h3>(Optional) If you want to test this, click here...</h3></summary>
 
 ```bash
-> systemctl stop wpa_supplicant-wired@eth1
-> systemctl disable wpa_supplicant-wired@eth1
+> systemctl stop wpa_supplicant-wired@eth9
+> systemctl disable wpa_supplicant-wired@eth9
 > apt remove wpasupplicant -y
 ```
 
-Now try restarting your gateway. Upon boot up, SSH back in, and check `systemctl status wpa_supplicant-wired@eth1`.
-- Alternatively, without a restart, run `systemctl start reinstall-wpa.service`, wait until it finishes, then `systemctl status wpa_supplicant-wired@eth1`.
+Now try restarting your gateway. Upon boot up, SSH back in, and check `systemctl status wpa_supplicant-wired@eth9`.
+- Alternatively, without a restart, run `systemctl start reinstall-wpa.service`, wait until it finishes, then `systemctl status wpa_supplicant-wired@eth9`.
 
 You should see the following:
 ```
 Loaded: loaded (/lib/systemd/system/wpa_supplicant-wired@.service; enabled; vendor preset: enabled)
 Active: active (running) ...
 ...
-Dec 29 23:20:00 UXG-Lite wpa_supplicant[6845]: eth1: CTRL-EVENT-EAP-SUCCESS EAP authentication completed successfully
+Dec 29 23:20:00 UXG-Lite wpa_supplicant[6845]: eth9: CTRL-EVENT-EAP-SUCCESS EAP authentication completed successfully
 ```
 </details>
 
@@ -326,7 +326,7 @@ etc
 │   └── wpa_supplicant-wired@.service.d
 │       └── **restart-on-failure.conf**
 └── wpa_supplicant
-    ├── **wpa_supplicant-wired-eth1.conf**
+    ├── **wpa_supplicant-wired-eth9.conf**
     ├── certs
     │   ├── CA_XXX.pem
     │   ├── Client_XXX.pem
