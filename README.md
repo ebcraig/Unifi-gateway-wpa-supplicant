@@ -27,6 +27,7 @@ Instructions to [extract certs from BGW210/BGW320](https://github.com/0x888e/cer
 - [Test wpa_supplicant](#test-wpa_supplicant) - test wpasupplicant
 - [Setup wpa_supplicant service for startup](#setup-wpa_supplicant-service-for-startup) - start wpasupplicant on Unifi gateway bootup
 - [Survive firmware updates](#survive-firmware-updates) - automatically restore and setup wpasupplicant after firmware updates wipe it
+- [Surviving *major* UniFi OS upgrades](docs/surviving-major-upgrades.md) - what breaks when the Debian base changes underneath, and how to make the setup survive it
 
 ## Install wpa_supplicant on Unifi gateway
 SSH into your Unifi gateway.
@@ -230,6 +231,13 @@ To confirm this conf has applied, restart the service and query for some propert
 ```
 
 ## Survive firmware updates
+> [!IMPORTANT]
+> This section covers point releases. A **major** UniFi OS release can move the console
+> to a newer Debian base, and then the cached packages below cannot install — the
+> service runs, `dpkg` fails, and the WAN stays down. The newer base's OpenSSL 3 also
+> rejects the extracted certificates until the config is adjusted. See
+> [Surviving *major* UniFi OS upgrades](docs/surviving-major-upgrades.md).
+
 Firmware updates will nuke the packages installed through `apt` that don't come with the stock Unifi OS, removing our `wpasupplicant` package and service. Since we'll no longer have internet without wpa_supplicant authenticating us with ATT, we can't reinstall it from the debian repos.
 
 Let's cache some files locally and create a system service to automatically reinstall, start, and enable wpa_supplicant again on bootup.
